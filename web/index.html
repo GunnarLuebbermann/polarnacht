@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Polarnacht</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#081019">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Martian+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: ein Bildschirm, Terminal-Verlauf füllt die Mitte, Kopf mit Thermometer oben, Eingabe mit Schnelltasten unten.
+   Bewusst nur ein Look: Polarnacht. Eis-Töne für die Umgebung, Glut-Amber für Wärme und Hervorhebung. */
+:root {
+  --nacht: #081019;
+  --nacht-2: #0e1a26;
+  --kante: #1d2e3e;
+  --eis: #d8e7f1;
+  --reif: #7d93a5;
+  --frostblau: #8fd0ff;
+  --glut: #ffb15a;
+  --alarm: #ff6f5e;
+  --font-anzeige: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-text: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --gr-text: clamp(12.5px, 3.4vw, 15px);
+  --frost: 0;
+  --waerme: 1;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--nacht);
+  color: var(--eis);
+  font-family: var(--font-text);
+  font-size: var(--gr-text);
+  -webkit-text-size-adjust: 100%;
+  overflow: hidden;
+}
+.app {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: var(--app-h, 100%);
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in oklab, var(--frostblau) 9%, transparent), transparent 70%),
+    var(--nacht);
+}
+.app::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 85% 75% at 50% 50%, transparent 45%, color-mix(in oklab, var(--frostblau) 55%, transparent) 100%);
+  opacity: var(--frost);
+  transition: opacity 1.4s ease;
+  z-index: 3;
+}
+.gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Kopf */
+.kopf {
+  flex: none;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--kante);
+  background: color-mix(in oklab, var(--nacht) 85%, transparent);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  position: relative;
+  z-index: 4;
+}
+.marke {
+  font-family: var(--font-anzeige);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  min-width: 0;
+}
+.marke small {
+  font-family: var(--font-text);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--reif);
+  font-size: 11.5px;
+}
+.knopf {
+  font: 500 11px var(--font-anzeige);
+  letter-spacing: 0.08em;
+  color: var(--reif);
+  background: transparent;
+  border: 1px solid var(--kante);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.knopf:hover { color: var(--eis); border-color: var(--reif); }
+.knopf.warnung { color: var(--alarm); border-color: var(--alarm); }
+.anzeigen {
+  grid-column: 1 / -1;
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+}
+.thermo { display: flex; align-items: center; gap: 10px; flex: 1 1 160px; min-width: 0; }
+.skala {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--nacht-2);
+  border: 1px solid var(--kante);
+  overflow: hidden;
+  position: relative;
+}
+.fuellung {
+  position: absolute; inset: 0 auto 0 0;
+  width: calc(var(--waerme) * 100%);
+  background: color-mix(in oklab, var(--glut) calc(var(--waerme) * 100%), var(--frostblau));
+  transition: width .6s ease, background-color .6s ease;
+}
+.grad {
+  font: 700 15px var(--font-anzeige);
+  font-variant-numeric: tabular-nums;
+  min-width: 6.2ch;
+  text-align: right;
+  color: color-mix(in oklab, var(--glut) calc(var(--waerme) * 100%), var(--frostblau));
+}
+.code {
+  display: flex; gap: 6px; align-items: center;
+  font: 500 11.5px var(--font-anzeige);
+  letter-spacing: 0.06em;
+}
+.code .slot {
+  padding: 3px 6px;
+  border: 1px dashed var(--kante);
+  border-radius: 4px;
+  color: var(--reif);
+  min-width: 5.5ch; text-align: center;
+}
+.code .slot.da { border-style: solid; border-color: color-mix(in oklab, var(--glut) 60%, transparent); color: var(--glut); }
+.code .label { color: var(--reif); font-family: var(--font-text); letter-spacing: 0; font-weight: 400; }
+
+/* Verlauf */
+.log {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: 14px 8px;
+  display: flex; flex-direction: column; gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.eintrag { min-width: 0; }
+.befehl { color: var(--reif); word-break: break-all; }
+.befehl .p { color: color-mix(in oklab, var(--frostblau) 70%, var(--reif)); }
+.befehl .c { color: var(--eis); }
+pre.aus {
+  margin: 4px 0 0;
+  font: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hervor { color: var(--glut); font-weight: 600; }
+.haldor { color: var(--alarm); font-style: italic; }
+.leise { color: var(--reif); }
+.tok {
+  font: inherit;
+  color: var(--frostblau);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted color-mix(in oklab, var(--frostblau) 55%, transparent);
+  text-underline-offset: 3px;
+  text-align: left;
+}
+.tok-d { font-weight: 600; }
+.tok-x { color: #8fe3a6; text-decoration-color: color-mix(in oklab, #8fe3a6 55%, transparent); }
+.tok-c { color: var(--glut); text-decoration-color: color-mix(in oklab, var(--glut) 55%, transparent); }
+.tok:focus-visible, .knopf:focus-visible, .chip:focus-visible, .senden:focus-visible { outline: 2px solid var(--frostblau); outline-offset: 2px; border-radius: 3px; }
+.intro pre.aus { color: var(--eis); }
+.intro .titel { font: 700 22px var(--font-anzeige); letter-spacing: 0.18em; color: var(--eis); }
+
+/* Eingabe */
+.eingabe {
+  flex: none;
+  border-top: 1px solid var(--kante);
+  background: var(--nacht-2);
+  padding-top: 8px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  display: flex; flex-direction: column; gap: 8px;
+  position: relative; z-index: 4;
+}
+.chips {
+  display: flex; gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none;
+  font: 500 12.5px var(--font-text);
+  color: var(--eis);
+  background: var(--nacht);
+  border: 1px solid var(--kante);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.chip.akzent { color: var(--glut); border-color: color-mix(in oklab, var(--glut) 45%, var(--kante)); }
+.chip:active { background: var(--kante); }
+.prompt { color: color-mix(in oklab, var(--frostblau) 70%, var(--reif)); font-size: 12px; word-break: break-all; }
+.zeile { display: flex; gap: 8px; align-items: stretch; }
+.zeile input {
+  flex: 1; min-width: 0;
+  font: 16px var(--font-text);
+  color: var(--eis);
+  background: var(--nacht);
+  border: 1px solid var(--kante);
+  border-radius: 8px;
+  padding: 10px 12px;
+  caret-color: var(--glut);
+}
+.zeile input:focus { outline: none; border-color: color-mix(in oklab, var(--frostblau) 60%, var(--kante)); }
+.senden {
+  flex: none;
+  font: 700 16px var(--font-anzeige);
+  color: var(--nacht);
+  background: var(--glut);
+  border: none;
+  border-radius: 8px;
+  padding: 0 16px;
+  cursor: pointer;
+}
+.geheim .chips { visibility: hidden; }
+
+/* Sieg */
+.gewonnen { --frost: 0 !important; }
+.gewonnen .kopf { border-bottom-color: color-mix(in oklab, var(--glut) 40%, var(--kante)); }
+.app.gewonnen {
+  background:
+    radial-gradient(120% 60% at 50% 110%, color-mix(in oklab, var(--glut) 14%, transparent), transparent 70%),
+    var(--nacht);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app::after, .fuellung { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="kopf gutter">
+    <div class="marke">POLARNACHT <small>Station Nordlicht · 78°55′ N</small></div>
+    <button class="knopf" id="neustart" type="button">Neustart</button>
+    <div class="anzeigen">
+      <div class="thermo" title="Innentemperatur">
+        <div class="skala"><div class="fuellung"></div></div>
+        <output class="grad" id="grad">19,0 °C</output>
+      </div>
+      <div class="code" aria-label="Gefundene Codeteile">
+        <span class="label">Code</span>
+        <span class="slot" id="t0">····</span>
+        <span class="slot" id="t1">····</span>
+        <span class="slot" id="t2">····</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="log gutter" id="log" aria-live="polite">
+    <div class="eintrag intro"><pre class="aus" id="lade">Terminal startet …</pre></div>
+  </main>
+
+  <footer class="eingabe gutter" id="eingabe">
+    <div class="chips" id="chips">
+      <button class="chip" type="button" data-cmd="ls">ls</button>
+      <button class="chip" type="button" data-cmd="ls -a">ls -a</button>
+      <button class="chip" type="button" data-cmd="cd ..">cd ..</button>
+      <button class="chip" type="button" data-cmd="cd ~">cd ~</button>
+      <button class="chip" type="button" data-act="tab">⇥ Tab</button>
+      <button class="chip" type="button" data-act="hoch">↑ Letzter</button>
+      <button class="chip akzent" type="button" data-cmd="hinweis">hinweis</button>
+      <button class="chip" type="button" data-cmd="status">status</button>
+      <button class="chip" type="button" data-cmd="exit">exit</button>
+      <button class="chip" type="button" data-cmd="hilfe">hilfe</button>
+    </div>
+    <label class="prompt" id="prompt" for="cmd">techniker@nordlicht:~$</label>
+    <form class="zeile" id="form" autocomplete="off">
+      <input id="cmd" name="cmd" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="Befehl eingeben" disabled>
+      <button class="senden" type="submit" aria-label="Ausführen">⏎</button>
+    </form>
+  </footer>
+</div>
+
+<script src="wasm_exec.js"></script>
+<script>
+(() => {
+  const SPEICHER = "polarnacht-v1";
+  const $ = (id) => document.getElementById(id);
+  const app = $("app"), log = $("log"), input = $("cmd"), promptEl = $("prompt");
+  let prompt = "", secret = false, verlauf = [], vIndex = -1, zeilen = [], bereit = false;
+
+  // Höhe an sichtbaren Bereich anpassen (Bildschirmtastatur am Handy)
+  const vv = window.visualViewport;
+  function passeHoeheAn() {
+    if (!vv) return;
+    app.style.setProperty("--app-h", vv.height + "px");
+    app.style.top = vv.offsetTop + "px";
+  }
+  if (vv) { vv.addEventListener("resize", passeHoeheAn); vv.addEventListener("scroll", passeHoeheAn); passeHoeheAn(); }
+
+  const lade = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+  const sichere = () => { try { localStorage.setItem(SPEICHER, JSON.stringify(zeilen)); } catch {} };
+
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  function label(k, v) {
+    if (k === "c") return v;
+    const teile = v.split("/").filter(Boolean);
+    return (teile[teile.length - 1] || "/") + (k === "d" ? "/" : "");
+  }
+  function markup(text) {
+    return esc(text)
+      .replace(/⟦(\w)\|([^⟧]*)⟧/g, (_, k, v) => `<button type="button" class="tok tok-${k}" data-k="${k}" data-v="${v}">${esc(label(k, v.replace(/&quot;/g, '"')))}</button>`)
+      .replace(/«([^»]*)»/g, '<strong class="hervor">$1</strong>')
+      .replace(/⟪([^⟫]*)⟫/g, '<span class="haldor">$1</span>')
+      .replace(/‹([^›]*)›/g, '<span class="leise">$1</span>');
+  }
+
+  function eintrag(befehlPrompt, befehl, text, klasse) {
+    const d = document.createElement("div");
+    d.className = "eintrag" + (klasse ? " " + klasse : "");
+    let html = "";
+    if (befehlPrompt !== null) html += `<div class="befehl"><span class="p">${esc(befehlPrompt)}</span><span class="c">${esc(befehl)}</span></div>`;
+    if (text) html += `<pre class="aus">${markup(text)}</pre>`;
+    d.innerHTML = html;
+    log.appendChild(d);
+  }
+  const nachUnten = () => { log.scrollTop = log.scrollHeight; };
+
+  function zeigeStatus(st) {
+    const t = st.temp;
+    $("grad").textContent = t.toFixed(1).replace(".", ",") + " °C";
+    const waerme = Math.max(0, Math.min(1, (t + 10) / 30));
+    app.style.setProperty("--waerme", waerme.toFixed(3));
+    app.style.setProperty("--frost", Math.max(0, Math.min(1, (19 - t) / 22)).toFixed(3));
+    st.parts.forEach((p, i) => {
+      const el = $("t" + i);
+      el.textContent = p || "····";
+      el.classList.toggle("da", !!p);
+    });
+    app.classList.toggle("gewonnen", st.won);
+  }
+
+  function anwenden(r, befehlPrompt, befehl, still) {
+    if (r.clear) log.innerHTML = "";
+    let text = r.text || "";
+    if (r.quit) text += "\n‹(Im Browser bleibst du einfach hier. Tippe weiter.)›";
+    if (!r.clear) eintrag(befehlPrompt, befehl, text);
+    prompt = r.prompt; secret = r.secret;
+    promptEl.textContent = prompt.trimEnd();
+    input.type = secret ? "password" : "text";
+    input.placeholder = secret ? "Passwort eingeben" : (prompt.startsWith("Notfallcode") ? "Code eingeben" : "Befehl eingeben");
+    document.getElementById("eingabe").classList.toggle("geheim", secret);
+    zeigeStatus(r.status);
+    if (r.won && !still) waermeAnimation(r.status.temp);
+  }
+
+  function waermeAnimation(von) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return zeigeStatus({ temp: 21, parts: ["NORD", "LICHT", "STERN"], won: true });
+    const start = performance.now(), dauer = 4000;
+    (function schritt(jetzt) {
+      const f = Math.min(1, (jetzt - start) / dauer);
+      const t = von + (21 - von) * (1 - Math.pow(1 - f, 3));
+      zeigeStatus({ temp: t, parts: ["NORD", "LICHT", "STERN"], won: true });
+      if (f < 1) requestAnimationFrame(schritt);
+    })(start);
+  }
+
+  function ausfuehren(zeile, still) {
+    const p = prompt, war = secret;
+    const anzeige = war ? "•".repeat(Math.min(zeile.length, 12)) : zeile;
+    const r = JSON.parse(pnExec(zeile));
+    anwenden(r, p, anzeige, still);
+    if (!still) {
+      zeilen.push(zeile); sichere();
+      if (!war && zeile.trim()) { verlauf.push(zeile); }
+      vIndex = -1;
+      nachUnten();
+    } else if (!war && zeile.trim()) verlauf.push(zeile);
+  }
+
+  function neuesSpiel(gespeichert) {
+    log.innerHTML = "";
+    const r = JSON.parse(pnStart());
+    eintrag(null, "", "", "intro");
+    log.lastChild.innerHTML = `<pre class="aus">${markup(r.text).replace("POLARNACHT", '<span class="titel">POLARNACHT</span>')}</pre>`;
+    anwenden({ ...r, text: "" }, null, "", true);
+    log.lastChild.remove();
+    zeilen = []; verlauf = [];
+    for (const z of gespeichert) { ausfuehren(z, true); zeilen.push(z); }
+    if (gespeichert.length) eintrag(null, "", "‹Spielstand wiederhergestellt.›");
+    nachUnten();
+  }
+
+  // Eingabe
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!bereit) return;
+    const z = input.value;
+    input.value = "";
+    ausfuehren(z);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") { e.preventDefault(); tab(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); hoch(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); runter(); }
+  });
+  function tab() {
+    if (!bereit || secret) return;
+    const r = JSON.parse(pnComplete(input.value));
+    input.value = r.line;
+    if (r.options && r.options.length > 1) { eintrag(null, "", "‹" + r.options.join("  ") + "›"); nachUnten(); }
+    input.focus();
+  }
+  function hoch() {
+    if (!verlauf.length || secret) return;
+    vIndex = vIndex < 0 ? verlauf.length - 1 : Math.max(0, vIndex - 1);
+    input.value = verlauf[vIndex];
+  }
+  function runter() {
+    if (vIndex < 0) return;
+    vIndex++;
+    if (vIndex >= verlauf.length) { vIndex = -1; input.value = ""; } else input.value = verlauf[vIndex];
+  }
+
+  // Schnelltasten
+  $("chips").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip");
+    if (!b || !bereit) return;
+    if (b.dataset.act === "tab") return tab();
+    if (b.dataset.act === "hoch") { hoch(); input.focus(); return; }
+    ausfuehren(b.dataset.cmd);
+  });
+
+  // Antippbare Dateien, Ordner und Befehle
+  log.addEventListener("click", (e) => {
+    const b = e.target.closest(".tok");
+    if (!b || !bereit || secret) return;
+    const k = b.dataset.k, v = b.dataset.v;
+    if (input.value.trim()) {
+      input.value = input.value.replace(/\s*$/, " ") + v + " ";
+      input.focus();
+      return;
+    }
+    const befehl = { d: "cd " + v, f: "cat " + v, x: /^\.?\.?\//.test(v) ? v : "./" + v, c: v }[k];
+    ausfuehren(befehl);
+  });
+
+  // Neustart mit Bestätigung im Knopf selbst
+  const neu = $("neustart");
+  let neuTimer;
+  neu.addEventListener("click", () => {
+    if (!bereit) return;
+    if (!neu.classList.contains("warnung")) {
+      neu.classList.add("warnung"); neu.textContent = "Wirklich?";
+      neuTimer = setTimeout(() => { neu.classList.remove("warnung"); neu.textContent = "Neustart"; }, 3000);
+      return;
+    }
+    clearTimeout(neuTimer);
+    neu.classList.remove("warnung"); neu.textContent = "Neustart";
+    try { localStorage.removeItem(SPEICHER); } catch {}
+    neuesSpiel([]);
+  });
+
+  // WebAssembly laden
+  (async () => {
+    try {
+      const go = new Go();
+      let inst;
+      try {
+        inst = (await WebAssembly.instantiateStreaming(fetch("game.wasm"), go.importObject)).instance;
+      } catch {
+        const buf = await (await fetch("game.wasm")).arrayBuffer();
+        inst = (await WebAssembly.instantiate(buf, go.importObject)).instance;
+      }
+      go.run(inst);
+      if (typeof pnStart !== "function") throw new Error("Engine nicht gestartet");
+      bereit = true;
+      input.disabled = false;
+      neuesSpiel(lade(SPEICHER, []));
+    } catch (err) {
+      $("lade").innerHTML = markup("⟪Das Terminal konnte nicht starten.⟫\n‹" + String(err && err.message || err) + "›\n\nDieser Browser blockiert vermutlich WebAssembly.\nProbier die Seite in einem anderen Browser.");
+    }
+  })();
+})();
+</script>
+</body>
+</html>
